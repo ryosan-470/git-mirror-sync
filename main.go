@@ -24,10 +24,26 @@ func envString(key, def string) string {
 
 func main() {
 	flag.Parse()
-	//	fmt.Printf("srcRepo = %s\nsrcBranch = %s\ndestRepo = %s\n", *srcRepo, *srcBranch, *destRepo)
-	err := cloneRepo("https://github.com/ryosan-470/git-mirror-sync", "master", "/tmp/git/")
-	if err != nil {
-		fmt.Println(err)
+	inputValidation()
+
+}
+
+func inputValidation() {
+	if *srcRepo == "" {
+		fmt.Fprintf(os.Stderr, "ERROR: --src or $GIT_SRC_REPO must be provided\n")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if *destRepo == "" {
+		fmt.Fprintf(os.Stderr, "ERROR: --dest or $GIT_DEST_REPO must be provided\n")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if _, err := exec.LookPath("git"); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: git executable not found: %v\n", err)
+		os.Exit(1)
 	}
 }
 
