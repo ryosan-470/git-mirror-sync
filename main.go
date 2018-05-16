@@ -68,3 +68,36 @@ func cloneRepo(repo, branch, gitRoot string) error {
 	log.Printf("Cloned repo %s", repo)
 	return nil
 }
+
+func pullRepo(branch, gitRoot string) error {
+	args := []string{"pull", "origin", branch}
+	_, err := runCommand(gitRoot, "git", args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func addDest(destRepo, gitRoot string) error {
+	args := []string{"remote", "show", "dest"}
+	_, err := runCommand(gitRoot, "git", args...)
+	if err == nil {
+		return nil
+	}
+
+	args = []string{"remote", "add", "dest", destRepo}
+	_, err = runCommand(gitRoot, "git", args...)
+	if err != nil {
+		return fmt.Errorf("failure to add remote repository: %v", err)
+	}
+	return nil
+}
+
+func pushRepo(branch, destRepo, gitRoot string) error {
+	args := []string{"push", "dest", branch}
+	_, err := runCommand(gitRoot, "git", args...)
+	if err != nil {
+		return fmt.Errorf("failure to push to %s: %v", destRepo, err)
+	}
+	return nil
+}
