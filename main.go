@@ -3,9 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path"
+	"strings"
 )
 
 var (
@@ -26,6 +29,19 @@ func main() {
 	flag.Parse()
 	inputValidation()
 
+	if *gitRoot == "" {
+		dir, err := ioutil.TempDir("", "")
+		if err != nil {
+			log.Fatalf("Fatal: Generate TempDir: %v", err)
+		}
+		*gitRoot = dir
+		log.Printf("Directory: %s", *gitRoot)
+	}
+
+	err := syncRepo(*srcRepo, *destRepo, *srcBranch, *gitRoot)
+	if err != nil {
+		log.Fatalf("FATAL: %v", err)
+	}
 }
 
 func inputValidation() {
@@ -59,13 +75,42 @@ func runCommand(cwd, command string, args ...string) (string, error) {
 	return string(output), nil
 }
 
+func syncRepo(src, dest, branch, gitRoot string) error {
+	name := src[strings.LastIndex(src, "/")+1:]
+	gitRepoPath := path.Join(gitRoot, name)
+	_, err := os.Stat(gitRepoPath)
+	switch {
+	case os.IsNotExist(err):
+		err = cloneRepo(src, branch, gitRepoPath)
+		if err != nil {
+			return err
+		}
+	case err != nil:
+		return fmt.Errorf("error checking if repo exists: %q: %v", gitRepoPath, err)
+	default:
+		err = pullRepo(branch, gitRepoPath)
+		if err != nil {
+			return err
+		}
+		err = addDest(dest, gitRepoPath)
+		if err != nil {
+			return err
+		}
+		err = pushRepo(dest, branch, gitRepoPath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func cloneRepo(repo, branch, gitRoot string) error {
 	args := []string{"clone", "-b", branch, repo, gitRoot}
 	_, err := runCommand("", "git", args...)
 	if err != nil {
 		return err
 	}
-	log.Printf("Cloned repo %s", repo)
+	log.Printf("Clone repository %s from %s", gitRoot, repo)
 	return nil
 }
 
@@ -73,8 +118,9 @@ func pullRepo(branch, gitRoot string) error {
 	args := []string{"pull", "origin", branch}
 	_, err := runCommand(gitRoot, "git", args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("failure to pull to %s: %v", *srcRepo, err)
 	}
+	log.Printf("Pull repository %s from %s (branch is %s)", gitRoot, *srcRepo, branch)
 	return nil
 }
 
@@ -93,11 +139,12 @@ func addDest(destRepo, gitRoot string) error {
 	return nil
 }
 
-func pushRepo(branch, destRepo, gitRoot string) error {
+func pushRepo(repo, branch, gitRoot string) error {
 	args := []string{"push", "dest", branch}
 	_, err := runCommand(gitRoot, "git", args...)
 	if err != nil {
-		return fmt.Errorf("failure to push to %s: %v", destRepo, err)
+		return fmt.Errorf("failure to push to %s: %v", repo, err)
 	}
+	log.Printf("Push repository %s to %s (branch is %s)", gitRoot, repo, branch)
 	return nil
 }
